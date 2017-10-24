@@ -9,6 +9,6 @@ server: "START=\<password\>,STOP=\<password\>,MD5=\<hexstring\>"
   
 client: "NOT FOUND"
 
-client: "FOUND=\<hexstring\>"
+client: "FOUND=\<password\>"
   
 server: "STOP"
