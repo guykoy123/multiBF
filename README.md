@@ -4,10 +4,10 @@
 
 client: "HELLO"
 
-server: "START=<password>,STOP=<password>,MD5=<hexstring>"
+server: "START=\<password\>,STOP=\<password\>,MD5=\<hexstring\>"
   
 client: "NOT FOUND"
 
-client: "FOUND=<hexstring>"
+client: "FOUND=\<hexstring\>"
   
 server: "STOP"
