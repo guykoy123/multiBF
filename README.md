@@ -1,5 +1,6 @@
 # multiBF
 
+# connection port: 4320
 # communication protocol:
 
 client: "HELLO"
