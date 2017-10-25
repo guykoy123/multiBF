@@ -1,16 +1,12 @@
-import socket
-import threading
-import itertools
-import re
-import hashlib
-import string
+import socket, threading, itertools, re, hashlib, string
 
+global ranges, gen, real_password, connected_clients, is_connected, end_of_range, NUMBER_OF_PASSWORDS, HASHED_PASSWORD, manager_socket
 # Globals:
 # Constants:
 NUMBER_OF_PASSWORDS = 10000000
 
 # real password is: 'ggbbaa'
-HASHED_PASSWORD = '9286a271d4ab3ffa09727d9e18e3dee9'
+HASHED_PASSWORD = '9286a271d4ab3ffa09727d9e18e3dee9'.decode('hex') # binary form
 
 # Not constants:
 ranges=[]
@@ -112,9 +108,16 @@ def manage_client(client_socket):
             real_password = answer_check.group(1)
 
             # confirm the password is real.
-            if hashlib.md5(real_password).hexdigest() == HASHED_PASSWORD:
-                print 'found:',real_password
+            if hashlib.md5(real_password).digest() == HASHED_PASSWORD:
+                print 'found:', real_password
                 found = True
+                # stop all clients when password is found.
+                stop_clients()
+                # send an empty message to the manager, which in turn closes because it doesn't match the protocol.
+                end_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                end_sock.connect(('127.0.0.1', 4320))
+                end_sock.send('')
+                end_sock.close()
 
         # check if client works according to protocol (close connection if not).
         elif answer != 'NOT FOUND':
@@ -124,11 +127,6 @@ def manage_client(client_socket):
             connected_clients.remove(client_socket)
             break
 
-    # stop all clients when password is found.
-    if found:
-        stop_clients()
-
-
 # create manager socket.
 manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 manager_port = 4320
@@ -136,20 +134,16 @@ manager_socket.bind(('', manager_port))
 ranges=getRanges()
 print str(len(ranges))
 
-while True:
+while not found:
     manager_socket.listen(1)
     client_socket, client_address = manager_socket.accept()
 
     data = client_socket.recv(1024)
-    print 'Connected to client:', client_address,' recieved:',data
+    print 'Connected to client:', client_address,' received:',data
     if data == 'HELLO':
-
-
         connected_clients.append(client_socket)
         t = threading.Thread(target=manage_client, args=(client_socket, ))
         t.start()
     else:
-
         client_socket.close()
-
 manager_socket.close()
