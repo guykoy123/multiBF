@@ -110,7 +110,7 @@ def manage_client(client_socket):
 
 # create manager socket.
 manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-manager_port = 2345
+manager_port = 4320
 manager_socket.bind(('127.0.0.1', manager_port))
 manager_socket.listen(1)
 
