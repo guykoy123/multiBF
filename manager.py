@@ -21,11 +21,36 @@ connected_clients = []
 is_connected = False
 end_of_range=False
 
+ # TODO: add watch dog
+ 
 def getRanges():
-    l=[]
-    while not end_of_range:
-        l.append(gen_pass(NUMBER_OF_PASSWORDS))
-    return l
+    """
+    try to read precalculated ranges from file
+    if unable: calculate ranges save in a file and return
+    otherwise: read from file and return"""
+
+    with open('ranges.txt','w+') as f: #open file (automicly closes file)
+        try:
+            text=f.read() # try to read from file
+        except: # unable to read, calculate ranges
+            l=[]
+            while not end_of_range:
+                l.append(gen_pass(NUMBER_OF_PASSWORDS))
+
+            fileText=''
+            for i in l:
+                fileText=fileText+','+i[0]+','+i[1] # create string that will be written to file
+
+            fileText=fileText[1:-1] # remove the ',' in the beginning
+            return l
+
+        tempRanges=text.split(',') # able to read
+        ranges=[]
+        for i in range(len(tempRanges)-1): # create a list with all ranges
+            ranges.append(tempRanges[i],tempRanges[i+1])
+        return ranges
+
+
 
 def gen_pass(num_of_passwords):
     """
@@ -41,7 +66,6 @@ def gen_pass(num_of_passwords):
         try:
             gen.next()
         except:
-            print 'got to the end'
             stop='zzzzzz'
             end_of_range=True
             return start,stop
@@ -128,28 +152,38 @@ def manage_client(client_socket):
     if found:
         stop_clients()
 
+def main():
+    # create manager socket.
+    manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    manager_port = 4320
+    manager_socket.bind(('', manager_port))
+    ranges=getRanges() # retrieve ranges
+    print 'got ranges'
+    threads =[]
 
-# create manager socket.
-manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-manager_port = 4320
-manager_socket.bind(('', manager_port))
-ranges=getRanges()
-print str(len(ranges))
+    while True:
+        manager_socket.listen(1)
+        client_socket, client_address = manager_socket.accept()
 
-while True:
-    manager_socket.listen(1)
-    client_socket, client_address = manager_socket.accept()
-
-    data = client_socket.recv(1024)
-    print 'Connected to client:', client_address,' recieved:',data
-    if data == 'HELLO':
+        data = client_socket.recv(1024)
+        print 'Connected to client:', client_address,' recieved:',data
+        if data == 'HELLO':
 
 
-        connected_clients.append(client_socket)
-        t = threading.Thread(target=manage_client, args=(client_socket, ))
-        t.start()
-    else:
+            connected_clients.append(client_socket)
+            t = threading.Thread(target=manage_client, args=(client_socket, )) # open thread that will manage the client
+            t.start()
+            threads.append(t)
+        else:
 
-        client_socket.close()
+            client_socket.close()
 
-manager_socket.close()
+        if len(connected_clients)==0 and len(ranges)==0: # if all connections closed and finished scanning all ranges
+            for i in threads: # close all threads
+                i.join()
+            break
+    manager_socket.close()
+    print 'server closed'
+
+if __name__=='__main__':
+    main()
