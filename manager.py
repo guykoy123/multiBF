@@ -21,8 +21,8 @@ connected_clients = []
 is_connected = False
 end_of_range=False
 
- # TODO: add watch dog
- 
+ # TODO: add watchdog
+
 def getRanges():
     """
     try to read precalculated ranges from file
