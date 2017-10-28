@@ -1,0 +1,7 @@
+Change log:
+
+Seperation between password list management and sockets:
+	password_handler.py handles the queue generation.
+
+Queue instead of list (ranges):
+	used 'Queue' module in password_handler.py for password ranges queue.
