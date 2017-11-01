@@ -5,7 +5,7 @@
 
 client: "HELLO"
 
-server:"KA=<\<portnumer\>"
+server:"KA=\<portnumer\>"
 
 client(every five seconds and in UDP): "ALIVE" (if not sent 3 times, connection is closed)
 
