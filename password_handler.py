@@ -3,8 +3,9 @@ import itertools
 import string
 
 # Globals:
+CHUNK_SIZE = 10
 RANGE_LENGTH = 100000
-PASSWORD_LENGTH = 4
+PASSWORD_LENGTH = 6
 
 password_generator = itertools.product(string.ascii_lowercase, repeat=PASSWORD_LENGTH)
 password_generator_empty = False
@@ -13,13 +14,13 @@ password_queue = Queue.Queue()
 
 def _generate_range():
     """
-    generate_range generate_range() -> tuple
+    _generate_range _generate_range() -> tuple
 
     Generate range of passwords of certain length.
     """
 
+    global PASSWORD_LENGTH
     global password_generator
-    global password_length
     global password_generator_empty
 
     try:
@@ -36,13 +37,13 @@ def _generate_range():
         for i in range(RANGE_LENGTH):
 
             try:
-            	
-            	# stop position
+
+                # stop position
                 # update every round in case of exception
                 stop = password_generator.next()
 
             except StopIteration:
-                
+
                 password_generator_empty = True
 
         else:
@@ -53,21 +54,24 @@ def _generate_range():
             return start, stop
 
 
-def init_password_queue():
+def generate_chunk():
     """
-    init_password_queue init_password_queue() -> None
+    generate_chunk generate_chunk()
 
-    Initialize the password_queue variable with all available
-    ranges.
+    Generate chunk of password ranges.
     """
 
+    global CHUNK_SIZE
     global password_queue
     global password_generator_empty
 
-    while not password_generator_empty:
+    count = 0
+
+    while count < CHUNK_SIZE and not password_generator_empty:
 
         new_range = _generate_range()
-        
-        if new_range:
 
+        if new_range:
             password_queue.put(new_range)
+
+        count += 1

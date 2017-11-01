@@ -4,16 +4,27 @@ import re
 import hashlib
 import password_handler
 
-
 # Globals:
-MANAGER_PORT = 2345
-HASHED_PASSWORD = '098f6bcd4621d373cade4e832627b4f6'  # test
+MANAGER_PORT = 4320
+HASHED_PASSWORD = '62318aca2ef2e809a13623715a8aaff4'  # testme
 
 found = False
 password = ''
-password_queue = None
 
 connected_clients = list()
+
+
+def stop_self():
+    """
+    stop_self stop_self() -> None
+
+    Stop manager socket.
+    """
+
+    stop_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    stop_socket.connect(('127.0.0.1', MANAGER_PORT))
+    stop_socket.send('')
+    stop_socket.close()
 
 
 def stop_clients():
@@ -27,14 +38,14 @@ def stop_clients():
 
     # close each client in the 'connected clients' list
     for client_socket in connected_clients:
-        
+
         try:
-            
+
             client_socket.send('STOP')
             client_socket.close()
 
         except Exception as e:
-            
+
             print type(e)
 
     # clear connected clients list
@@ -42,137 +53,132 @@ def stop_clients():
 
 
 def manage_client(client_socket):
-	"""
-	manage_client manage_client(client_socket) -> None
+    """
+    manage_client manage_client(client_socket) -> None
 
-	Manage a connected client socket according to known
-	protocol.
-	"""
+    Manage a connected client socket according to known
+    protocol.
+    """
 
-	global found
-	global password
-	global password_queue
-	global connected_clients
+    global found
+    global password
+    global connected_clients
 
-	# handle the client while the password was not found
-	while not found:
+    temp = tuple()
 
-		# assign job details (start password, stop password, hash)
-		# only assign job when password queue is not empty
-		if not password_queue.empty():
+    # handle the client while the password was not found
+    while not found:
 
-			temp = password_queue.get()
-			client_start, client_stop = temp
-			job_details = 'START={},STOP={},MD5={}'.format(client_start, client_stop, HASHED_PASSWORD)
+        # assign job details (start password, stop password, hash)
+        # only assign job when password queue is not empty
+        if not password_handler.password_generator_empty and password_handler.password_queue.empty():
 
-			# send job details to client and listen for an answer
-			try:
+            password_handler.generate_chunk()
+            print 'New chunk generated. Ready to work!'
 
-				client_socket.send(job_details)
+        if not password_handler.password_queue.empty():
 
-			# if something went wrong with the connection,
-			# return range back to queue and stop managing
-			# this client.
-			except Exception as e:
-			
-				password_queue.put(temp)
-				print type(e)
-				break
+            temp = password_handler.password_queue.get()
+            client_start, client_stop = temp
+            job_details = 'START={},STOP={},MD5={}'.format(client_start, client_stop, HASHED_PASSWORD)
 
-		try:
+            # send job details to client and listen for an answer
+            try:
 
-			answer = client_socket.recv(1024)
+                client_socket.send(job_details)
 
-		except Exception as e:
-			
-			password_queue.put(temp)
-			print type(e)
-			break
+            # if something went wrong with the connection,
+            # return range back to queue and stop managing
+            # this client.
+            except Exception as e:
 
-		else:
-			
-			# check client's answer with matchObject
-			answer_check = re.match('FOUND=(.*)', answer)
+                password_handler.password_queue.put(temp)
+                print type(e)
+                break
 
-			if answer_check:
+        try:
 
-				# extract real password from client's answer
-				password = answer_check.group(1)
+            answer = client_socket.recv(1024)
 
-				# confirm the password is real
-				if hashlib.md5(password).hexdigest() == HASHED_PASSWORD:
-				    
-				    found = True
+        except Exception as e:
 
-				else:
-					
-					password = ''
-			    	password_queue.put(temp)
+            password_handler.password_queue.put(temp)
+            print type(e)
+            break
 
-				# if client sent found, we assume it closed the
-				# connection, so we stop listening to him.
-				break
+        else:
 
-			# check if client works according to protocol (close connection if not)
-			elif answer != 'NOT FOUND':
+            # check client's answer with matchObject
+            answer_check = re.match('FOUND=(.*)', answer)
 
-				password_queue.put(temp)
-				# close connection since client is not genuine
-				client_socket.close()
-				connected_clients.remove(client_socket)
-				break
+            if answer_check:
 
-	# stop all clients when password is found
-	if found:
-		
-		print 'WE FOUND IT! Stopping clients.'
-		stop_clients()
+                # extract real password from client's answer
+                password = answer_check.group(1)
+
+                # confirm the password is real
+                if hashlib.md5(password).hexdigest() == HASHED_PASSWORD:
+
+                    found = True
+
+                else:
+
+                    password = ''
+                    password_handler.password_queue.put(temp)
+
+                # if client sent found, we assume it closed the
+                # connection, so we stop listening to him.
+                break
+
+            # check if client works according to protocol (close connection if not)
+            elif answer != 'NOT FOUND':
+
+                password_handler.password_queue.put(temp)
+                # close connection since client is not genuine
+                client_socket.close()
+                connected_clients.remove(client_socket)
+                break
+
+    # stop all clients when password is found
+    if found:
+        print 'WE FOUND IT! Stopping clients.'
+        stop_clients()
+        stop_self()
 
 
 def main():
 
-	global password_queue
-	global connected_clients
+    global connected_clients
 
-	# initialize password ranges queue
-	password_handler.init_password_queue()
-	password_queue = password_handler.password_queue
-	print 'Queue initialized. Ready to work!'
+    # initialize password ranges queue
+    password_handler.generate_chunk()
+    print 'Chunk generated. Ready to work!'
 
-	# create manager socket
-	manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	manager_socket.bind(('127.0.0.1', MANAGER_PORT))
-	manager_socket.listen(1)
+    # create manager socket
+    manager_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    manager_socket.bind(('127.0.0.1', MANAGER_PORT))
+    manager_socket.listen(1)
 
-	# thread manager
-	threads = list()
+    while not found:
 
-	while True:
+        client_socket, client_address = manager_socket.accept()
 
-		client_socket, client_address = manager_socket.accept()
-		
-		data = client_socket.recv(1024)
+        data = client_socket.recv(1024)
 
-		if data == 'HELLO':
-		
-			connected_clients.append(client_socket)
+        if data == 'HELLO':
 
-			t = threading.Thread(target=manage_client, args=(client_socket, ))
-			threads.append(t)
+            connected_clients.append(client_socket)
 
-			t.start()
+            t = threading.Thread(target=manage_client, args=(client_socket,))
+            t.start()
 
-		else:
+        else:
 
-		    client_socket.close()
+            client_socket.close()
 
-		if found:
-
-			break
-
-	manager_socket.close()
-	print 'Password found! {}'.format(password)
+    manager_socket.close()
+    print 'Password found! {}'.format(password)
 
 
 if __name__ == '__main__':
-	main()
+    main()
