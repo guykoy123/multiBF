@@ -27,6 +27,7 @@ def keep_alive(ka_client):
         if ka_message == 'ALIVE':
 
             keep_alive_counter[ka_client] = 0
+            print 'it\'s alive!'
 
         else:
 
@@ -41,12 +42,11 @@ def keep_alive(ka_client):
 def stop_self():
     """
     stop_self stop_self() -> None
-
     Stop manager socket.
     """
 
     stop_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    stop_socket.connect(('127.0.0.1', MANAGER_PORT))
+    stop_socket.connect(('', MANAGER_PORT))
     stop_socket.send('')
     stop_socket.close()
 
@@ -54,7 +54,6 @@ def stop_self():
 def stop_clients():
     """
     stop_clients stop_clients() -> None
-
     Stop all connected clients.
     """
 
@@ -79,7 +78,6 @@ def stop_clients():
 def manage_client(client_socket, keep_alive_socket):
     """
     manage_client manage_client(client_socket) -> None
-
     Manage a connected client socket according to known
     protocol.
     """
@@ -89,20 +87,21 @@ def manage_client(client_socket, keep_alive_socket):
     global connected_clients
     global keep_alive_counter
 
-    k = threading.Timer(4.5, keep_alive, args=keep_alive_socket)
+    k = threading.Timer(4.5, keep_alive, args=(keep_alive_socket, ))
     k.start()
 
     temp = tuple()
 
     # handle the client while the password was not found
     while not found:
-
+        
         if keep_alive_counter[keep_alive_socket] == 3:
 
-            k.close()
+            k.cancel()
             client_socket.close()
             connected_clients.remove(client_socket)
             keep_alive_counter.pop(keep_alive_socket, None)
+            print 'closed connection'
             break
 
         # assign job details (start password, stop password, hash)
@@ -197,7 +196,7 @@ def main():
     manager_socket.bind(('', MANAGER_PORT))
 
     # create keep-alive socket
-    ka_manager = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ka_manager = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ka_manager.bind(('', KEEP_ALIVE_PORT))
 
     while not found:
@@ -210,9 +209,10 @@ def main():
         if data == 'HELLO':
 
             connected_clients.append(client_socket)
-
+            print 'connected:',client_address
             client_socket.send('KA={}'.format(KEEP_ALIVE_PORT))
-
+            
+            ka_manager.listen(1)
             ka_client, ka_address = ka_manager.accept()
             ka_client.settimeout(1)
 
