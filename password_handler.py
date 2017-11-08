@@ -3,7 +3,7 @@ import itertools
 import string
 
 # Globals:
-CHUNK_SIZE = 10
+CHUNK_SIZE = 100
 RANGE_LENGTH = 100000
 PASSWORD_LENGTH = 6
 

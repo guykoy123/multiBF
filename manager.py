@@ -7,7 +7,7 @@ import password_handler
 # Globals:
 MANAGER_PORT = 4320
 KEEP_ALIVE_PORT = 4321
-HASHED_PASSWORD = '62318aca2ef2e809a13623715a8aaff4'  # testme
+HASHED_PASSWORD = hashlib.md5('abcdef').hexdigest()
 
 found = False
 password = ''
@@ -20,6 +20,8 @@ def keep_alive(ka_client):
 
     global keep_alive_counter
 
+    timer = threading.Timer(4.5, keep_alive, args=(ka_client,))
+
     try:
 
         ka_message = ka_client.recv(1024)
@@ -27,7 +29,7 @@ def keep_alive(ka_client):
         if ka_message == 'ALIVE':
 
             keep_alive_counter[ka_client] = 0
-            print 'it\'s alive!'
+            print 'It\'s alive!'
 
         else:
 
@@ -38,6 +40,15 @@ def keep_alive(ka_client):
 
         keep_alive_counter[ka_client] += 1
 
+    except Exception as e:
+
+        print e
+
+    finally:
+
+        if keep_alive_counter[ka_client] < 3:
+            timer.start()
+
 
 def stop_self():
     """
@@ -45,10 +56,15 @@ def stop_self():
     Stop manager socket.
     """
 
-    stop_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    stop_socket.connect(('', MANAGER_PORT))
-    stop_socket.send('')
-    stop_socket.close()
+    try:
+        stop_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        stop_socket.connect(('', MANAGER_PORT))
+        stop_socket.send('')
+        stop_socket.close()
+
+    except Exception as e:
+
+        print e
 
 
 def stop_clients():
@@ -69,7 +85,7 @@ def stop_clients():
 
         except Exception as e:
 
-            print type(e)
+            print e
 
     # clear connected clients list
     connected_clients = list()
@@ -87,17 +103,16 @@ def manage_client(client_socket, keep_alive_socket):
     global connected_clients
     global keep_alive_counter
 
-    k = threading.Timer(4.5, keep_alive, args=(keep_alive_socket, ))
+    k = threading.Thread(target=keep_alive, args=(keep_alive_socket, ))
     k.start()
 
     temp = tuple()
 
     # handle the client while the password was not found
     while not found:
-        
+
         if keep_alive_counter[keep_alive_socket] == 3:
 
-            k.cancel()
             client_socket.close()
             connected_clients.remove(client_socket)
             keep_alive_counter.pop(keep_alive_socket, None)
@@ -107,7 +122,6 @@ def manage_client(client_socket, keep_alive_socket):
         # assign job details (start password, stop password, hash)
         # only assign job when password queue is not empty
         if not password_handler.password_generator_empty and password_handler.password_queue.empty():
-
             password_handler.generate_chunk()
             print 'New chunk generated. Ready to work!'
 
@@ -128,7 +142,7 @@ def manage_client(client_socket, keep_alive_socket):
             except Exception as e:
 
                 password_handler.password_queue.put(temp)
-                print type(e)
+                print e
                 break
 
         try:
@@ -138,7 +152,7 @@ def manage_client(client_socket, keep_alive_socket):
         except Exception as e:
 
             password_handler.password_queue.put(temp)
-            print type(e)
+            print e
             break
 
         else:
@@ -176,13 +190,13 @@ def manage_client(client_socket, keep_alive_socket):
 
     # stop all clients when password is found
     if found:
-        print 'WE FOUND IT! Stopping clients.'
+
+        print 'WE FOUND IT! Stopping clients...'
         stop_clients()
         stop_self()
 
 
 def main():
-
     global KEEP_ALIVE_PORT
     global MANAGER_PORT
     global connected_clients
@@ -201,29 +215,35 @@ def main():
 
     while not found:
 
-        manager_socket.listen(1)
-        client_socket, client_address = manager_socket.accept()
+        try:
 
-        data = client_socket.recv(1024)
+            manager_socket.listen(1)
+            client_socket, client_address = manager_socket.accept()
 
-        if data == 'HELLO':
+            data = client_socket.recv(1024)
 
-            connected_clients.append(client_socket)
-            print 'connected:',client_address
-            client_socket.send('KA={}'.format(KEEP_ALIVE_PORT))
-            
-            ka_manager.listen(1)
-            ka_client, ka_address = ka_manager.accept()
-            ka_client.settimeout(1)
+            if data == 'HELLO':
 
-            keep_alive_counter[ka_client] = 0
+                connected_clients.append(client_socket)
+                print 'connected:', client_address
+                client_socket.send('KA={}'.format(KEEP_ALIVE_PORT))
 
-            t = threading.Thread(target=manage_client, args=(client_socket, ka_client))
-            t.start()
+                ka_manager.listen(1)
+                ka_client, ka_address = ka_manager.accept()
+                ka_client.settimeout(1)
 
-        else:
+                keep_alive_counter[ka_client] = 0
 
-            client_socket.close()
+                t = threading.Thread(target=manage_client, args=(client_socket, ka_client))
+                t.start()
+
+            else:
+
+                client_socket.close()
+
+        except Exception as e:
+
+            print e
 
     manager_socket.close()
     print 'Password found! {}'.format(password)
